@@ -1,26 +1,17 @@
-// ── Session ──────────────────────────────────────────────────────────────────
-
+// ── Session ───────────────────────────────────────────────────────────────────
 const myName = sessionStorage.getItem('dfg_name');
 const myRoom = sessionStorage.getItem('dfg_room');
-
-if (!myName || !myRoom) {
-  window.location.href = '/';
-}
-
-document.getElementById('roomLabel').textContent = myRoom;
+if (!myName || !myRoom) window.location.href = '/';
 
 // ── State ─────────────────────────────────────────────────────────────────────
-
 let myId = sessionStorage.getItem('dfg_id');
 let myHand = [];
 let gameState = null;
 
 // ── Socket ────────────────────────────────────────────────────────────────────
-
 const socket = io();
 
 socket.on('connect', () => {
-  // Re-join on reconnect
   socket.emit('joinRoom', { name: myName, roomId: myRoom });
 });
 
@@ -45,43 +36,42 @@ socket.on('error', (msg) => {
 });
 
 // ── Render ────────────────────────────────────────────────────────────────────
-
 function render() {
   if (!gameState) return;
-
   if (gameState.phase === 'lobby') {
     showLobby();
+    return;
+  }
+  showGame();
+  renderOpponents();
+  renderPond();
+  renderAskPanel();
+  renderHand();
+
+  const badge = document.getElementById('rulesetBadge');
+  if (gameState.ruleset) {
+    badge.textContent = gameState.ruleset === 'dinas' ? "Dina's Rules ✨" : 'Classic';
+    badge.className = 'ruleset-badge' + (gameState.ruleset === 'dinas' ? ' ruleset-badge-dinas' : '');
+    badge.style.display = '';
+  }
+
+  if (gameState.phase === 'ended' && gameState.winner) {
+    showWinner(gameState.winner);
   } else {
-    showGame();
-    renderPlayers();
-    renderPond();
-    renderLog();
-    renderAskPanel();
-    renderHand();
-    // Show ruleset badge in topbar
-    const badge = document.getElementById('rulesetBadge');
-    if (gameState.ruleset) {
-      badge.textContent = gameState.ruleset === 'dinas' ? "Dina's Rules ✨" : 'Classic Rules';
-      badge.className = 'ruleset-badge' + (gameState.ruleset === 'dinas' ? ' ruleset-badge-dinas' : '');
-      badge.style.display = '';
-    }
-    if (gameState.phase === 'ended' && gameState.winner) {
-      showWinner(gameState.winner);
-    } else {
-      document.getElementById('winnerOverlay').style.display = 'none';
-    }
+    document.getElementById('winnerOverlay').style.display = 'none';
   }
 }
 
 function showLobby() {
-  document.getElementById('lobbyArea').style.display = '';
+  document.getElementById('lobbyArea').style.display = 'flex';
   document.getElementById('gameArea').style.display = 'none';
+  document.getElementById('roomLabel').textContent = myRoom;
   const list = document.getElementById('playerList');
   list.innerHTML = '';
   if (gameState && gameState.players) {
     for (const p of gameState.players) {
       const div = document.createElement('div');
-      div.className = 'player-chip';
+      div.className = 'player-chip' + (p.id === myId ? ' me' : '');
       div.textContent = p.name + (p.id === myId ? ' (you)' : '');
       list.appendChild(div);
     }
@@ -90,29 +80,41 @@ function showLobby() {
 
 function showGame() {
   document.getElementById('lobbyArea').style.display = 'none';
-  document.getElementById('gameArea').style.display = '';
+  document.getElementById('gameArea').style.display = 'flex';
+  document.getElementById('yourName').textContent = myName;
 }
 
-function renderPlayers() {
+function renderOpponents() {
   if (!gameState) return;
-  const list = document.getElementById('opponentList');
-  list.innerHTML = '';
-
-  for (const p of gameState.players) {
+  const arc = document.getElementById('opponentArc');
+  arc.innerHTML = '';
+  const others = gameState.players.filter(p => p.id !== myId);
+  others.forEach((p, i) => {
     const isCurrent = p.id === gameState.currentTurnId;
-    const isMe = p.id === myId;
     const div = document.createElement('div');
-    div.className = 'player-row' + (isCurrent ? ' active-turn' : '') + (p.out ? ' out' : '');
+    div.className = 'opponent' + (isCurrent ? ' active' : '') + (p.out ? ' out' : '');
+
+    // Fan of face-down cards
+    let facedown = '';
+    const count = Math.min(p.handSize, 7);
+    for (let c = 0; c < count; c++) {
+      const rot = (c - (count - 1) / 2) * 8;
+      facedown += `<div class="fd-card" style="transform:rotate(${rot}deg) translateY(${Math.abs(rot) * 0.5}px)"></div>`;
+    }
+
     div.innerHTML = `
-      <div class="player-name">${isMe ? '👤 ' : ''}${p.name}${p.out ? ' 🚫' : ''}</div>
-      <div class="player-meta">
-        <span class="card-count">${p.handSize} card${p.handSize !== 1 ? 's' : ''}</span>
-        <span class="book-count">${p.books.length} 📚</span>
+      <div class="opp-fan">${facedown}</div>
+      <div class="opp-info">
+        <div class="opp-name">${p.name}${p.out ? ' 🚫' : ''}</div>
+        <div class="opp-stats">
+          <span>${p.handSize} cards</span>
+          ${p.books.length ? `<span>📚 ${p.books.join(' ')}</span>` : ''}
+        </div>
       </div>
-      ${p.books.length ? `<div class="player-books">${p.books.map(r => bookChip(r)).join('')}</div>` : ''}
+      ${isCurrent ? '<div class="turn-dot"></div>' : ''}
     `;
-    list.appendChild(div);
-  }
+    arc.appendChild(div);
+  });
 }
 
 function renderPond() {
@@ -120,35 +122,55 @@ function renderPond() {
   document.getElementById('pondCount').textContent = gameState.pondSize;
 }
 
-function renderLog() {
-  if (!gameState) return;
-  const el = document.getElementById('logList');
-  el.innerHTML = gameState.log.map(l => `<div class="log-entry">${l}</div>`).join('');
-}
-
 function renderHand() {
   const el = document.getElementById('yourHand');
   el.innerHTML = '';
 
   if (!myHand || myHand.length === 0) {
-    el.innerHTML = '<div class="empty-hand">No cards</div>';
-  } else {
-    for (const card of myHand) {
-      const div = document.createElement('div');
-      const isRed = card.suit === '♥' || card.suit === '♦';
-      div.className = 'card' + (isRed ? ' red' : '');
-      div.innerHTML = `<span class="card-rank">${card.rank}</span><span class="card-suit">${card.suit}</span>`;
-      el.appendChild(div);
-    }
+    el.innerHTML = '<div class="empty-hand">No cards in hand</div>';
+    renderBooks();
+    return;
   }
 
-  // Your books
+  // Sort: group by rank, then by rank order
+  const rankOrder = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const sorted = [...myHand].sort((a, b) => {
+    const ri = rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank);
+    if (ri !== 0) return ri;
+    return a.suit.localeCompare(b.suit);
+  });
+
+  const total = sorted.length;
+  sorted.forEach((card, i) => {
+    const isRed = card.suit === '♥' || card.suit === '♦';
+    const div = document.createElement('div');
+    div.className = 'card' + (isRed ? ' red' : '');
+
+    // Fan rotation
+    const spread = Math.min(total * 5, 50);
+    const rot = total > 1 ? (i / (total - 1) - 0.5) * spread : 0;
+    const lift = Math.abs(rot) * 0.4;
+    div.style.setProperty('--rot', rot + 'deg');
+    div.style.setProperty('--lift', lift + 'px');
+
+    div.innerHTML = `
+      <div class="card-tl"><div class="card-rank">${card.rank}</div><div class="card-suit">${card.suit}</div></div>
+      <div class="card-center-suit">${card.suit}</div>
+      <div class="card-br"><div class="card-rank">${card.rank}</div><div class="card-suit">${card.suit}</div></div>
+    `;
+    el.appendChild(div);
+  });
+
+  renderBooks();
+}
+
+function renderBooks() {
   const me = gameState && gameState.players.find(p => p.id === myId);
-  const booksEl = document.getElementById('yourBooks');
+  const el = document.getElementById('yourBooks');
   if (me && me.books.length) {
-    booksEl.innerHTML = me.books.map(r => bookChip(r)).join('');
+    el.innerHTML = me.books.map(r => `<span class="book-chip">${r}</span>`).join('');
   } else {
-    booksEl.innerHTML = '<span class="empty-hint">None yet</span>';
+    el.innerHTML = '';
   }
 }
 
@@ -164,16 +186,15 @@ function renderAskPanel() {
   }
 
   const isMyTurn = gameState.currentTurnId === myId;
-
   if (isMyTurn) {
-    askPanel.style.display = '';
+    askPanel.style.display = 'flex';
     waitPanel.style.display = 'none';
     populateAskSelects();
   } else {
     askPanel.style.display = 'none';
-    waitPanel.style.display = '';
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentTurnId);
-    waitMsg.textContent = currentPlayer ? `It's ${currentPlayer.name}'s turn…` : 'Waiting…';
+    waitPanel.style.display = 'flex';
+    const cur = gameState.players.find(p => p.id === gameState.currentTurnId);
+    waitMsg.textContent = cur ? `Waiting for ${cur.name}…` : 'Waiting…';
   }
 }
 
@@ -181,7 +202,6 @@ function populateAskSelects() {
   const targetSelect = document.getElementById('targetSelect');
   const rankSelect = document.getElementById('rankSelect');
 
-  // Targets: other active players
   const prevTarget = targetSelect.value;
   targetSelect.innerHTML = '';
   if (gameState) {
@@ -196,11 +216,10 @@ function populateAskSelects() {
     if (prevTarget) targetSelect.value = prevTarget;
   }
 
-  // Ranks: only ranks the player holds
   const prevRank = rankSelect.value;
   rankSelect.innerHTML = '';
-  const rankOrder = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-  const heldRanks = [...new Set(myHand.map(c => c.rank))].sort((a, b) => rankOrder.indexOf(a) - rankOrder.indexOf(b));
+  const rankOrder = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const heldRanks = [...new Set(myHand.map(c => c.rank))].sort((a,b) => rankOrder.indexOf(a) - rankOrder.indexOf(b));
   for (const rank of heldRanks) {
     const opt = document.createElement('option');
     opt.value = rank;
@@ -210,33 +229,76 @@ function populateAskSelects() {
   if (prevRank && heldRanks.includes(prevRank)) rankSelect.value = prevRank;
 }
 
-function bookChip(rank) {
-  return `<span class="book-chip">${rank}</span>`;
+// ── Result flash ──────────────────────────────────────────────────────────────
+let lastLogLength = 0;
+
+function checkForNewEvents() {
+  if (!gameState || !gameState.log) return;
+  if (gameState.log.length === lastLogLength) return;
+
+  // The newest entry is at index 0
+  const newest = gameState.log[0];
+  lastLogLength = gameState.log.length;
+
+  if (!newest) return;
+
+  // Only show flash for events involving me
+  if (newest.includes(myName)) {
+    if (newest.includes('GO FISH')) {
+      showFlash('🐟', 'Go Fish!', 'gofish');
+    } else if (newest.includes('got') && newest.includes('card')) {
+      showFlash('✅', newest.replace(/^[^ ]+ /, ''), 'success');
+    } else if (newest.includes('book')) {
+      showFlash('📚', 'Book complete!', 'book');
+    } else if (newest.includes('drew a card')) {
+      showFlash('🎴', 'Drew a card', 'draw');
+    }
+  } else if (newest.includes('GO FISH') && newest.includes(myName.split(' ')[0])) {
+    showFlash('🐟', 'Go Fish!', 'gofish');
+  }
+}
+
+function showFlash(icon, msg, type) {
+  const flash = document.getElementById('resultFlash');
+  document.getElementById('resultIcon').textContent = icon;
+  document.getElementById('resultMsg').textContent = msg;
+  flash.className = 'result-flash flash-' + type;
+  flash.style.display = 'flex';
+  // Trigger animation
+  flash.classList.remove('flash-in');
+  void flash.offsetWidth;
+  flash.classList.add('flash-in');
+  clearTimeout(flash._timer);
+  flash._timer = setTimeout(() => {
+    flash.classList.add('flash-out');
+    setTimeout(() => { flash.style.display = 'none'; flash.classList.remove('flash-out', 'flash-in'); }, 400);
+  }, 1800);
 }
 
 function showWinner(winner) {
-  const overlay = document.getElementById('winnerOverlay');
-  const title = document.getElementById('winnerTitle');
-  const desc = document.getElementById('winnerDesc');
-  title.textContent = winner.id === myId ? '🎉 You won!' : `${winner.name} wins!`;
-  desc.textContent = `${winner.name} finished with ${winner.books} book${winner.books !== 1 ? 's' : ''}.`;
-  overlay.style.display = 'flex';
+  document.getElementById('winnerTitle').textContent = winner.id === myId ? '🎉 You won!' : `${winner.name} wins!`;
+  document.getElementById('winnerDesc').textContent = `${winner.name} finished with ${winner.books} book${winner.books !== 1 ? 's' : ''}.`;
+  document.getElementById('winnerOverlay').style.display = 'flex';
 }
 
-// ── Button handlers ───────────────────────────────────────────────────────────
+// ── Hook into gameState updates for flash ─────────────────────────────────────
+const _origGameState = socket.listeners('gameState');
+socket.on('gameState', (state) => {
+  // called after the main handler sets gameState
+  setTimeout(checkForNewEvents, 50);
+});
 
+// ── Button handlers ───────────────────────────────────────────────────────────
 document.getElementById('startBtn').addEventListener('click', () => {
-  const errEl = document.getElementById('startError');
-  errEl.style.display = 'none';
+  document.getElementById('startError').style.display = 'none';
   const ruleset = document.querySelector('input[name="lobbyRuleset"]:checked').value;
   socket.emit('startGame', { roomId: myRoom, ruleset });
 });
 
-// Lobby ruleset toggle description
 const lobbyRulesetDesc = document.getElementById('lobbyRulesetDesc');
 const rulesetDescriptions = {
-  classic: 'Getting cards from a player earns you another turn.',
-  dinas: 'Getting cards from a player ends your turn — no bonus go.',
+  classic: 'Getting cards earns you another turn.',
+  dinas: 'Getting cards ends your turn — no bonus go.',
 };
 document.querySelectorAll('input[name="lobbyRuleset"]').forEach(radio => {
   radio.addEventListener('change', () => {
@@ -257,7 +319,6 @@ document.getElementById('playAgainBtn').addEventListener('click', () => {
 });
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
-
 function showToast(msg, isError = false) {
   const t = document.createElement('div');
   t.className = 'toast' + (isError ? ' toast-error' : '');
