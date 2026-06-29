@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dina's Fishing Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="lobby-page">
+  <div class="lobby-container">
+    <div class="lobby-art">🎣</div>
+    <h1 class="title">Dina's Fishing Game</h1>
+    <p class="subtitle">Go Fish for two to six players</p>
+
+    <div class="lobby-card">
+      <div class="field">
+        <label for="nameInput">Your name</label>
+        <input id="nameInput" type="text" placeholder="e.g. Dina" maxlength="20" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="roomInput">Room name</label>
+        <input id="roomInput" type="text" placeholder="e.g. cozy-dock" maxlength="24" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label>Ruleset</label>
+        <div class="ruleset-toggle">
+          <label class="ruleset-option">
+            <input type="radio" name="ruleset" value="classic" checked />
+            <span class="ruleset-pill">Classic</span>
+          </label>
+          <label class="ruleset-option">
+            <input type="radio" name="ruleset" value="dinas" />
+            <span class="ruleset-pill">Dina's Rules ✨</span>
+          </label>
+        </div>
+        <p id="rulesetDesc" class="ruleset-desc">Getting cards from a player earns you another turn.</p>
+      </div>
+      <button id="joinBtn" class="btn-primary">Cast in</button>
+      <p id="lobbyError" class="error-msg" style="display:none"></p>
+    </div>
+
+    <p class="hint">Share the same room name with your friends to play together.</p>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const joinBtn = document.getElementById('joinBtn');
+    const nameInput = document.getElementById('nameInput');
+    const roomInput = document.getElementById('roomInput');
+    const errorEl = document.getElementById('lobbyError');
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+    }
+
+    joinBtn.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      const roomId = roomInput.value.trim().toLowerCase().replace(/\s+/g, '-');
+      const ruleset = document.querySelector('input[name="ruleset"]:checked').value;
+      if (!name) return showError('Please enter your name.');
+      if (!roomId) return showError('Please enter a room name.');
+      errorEl.style.display = 'none';
+      joinBtn.disabled = true;
+      joinBtn.textContent = 'Joining…';
+      sessionStorage.setItem('dfg_ruleset', ruleset);
+      socket.emit('joinRoom', { name, roomId });
+    });
+
+    // Update description text when ruleset changes
+    const rulesetDesc = document.getElementById('rulesetDesc');
+    const descriptions = {
+      classic: 'Getting cards from a player earns you another turn.',
+      dinas: 'Getting cards from a player ends your turn — no bonus go.',
+    };
+    document.querySelectorAll('input[name="ruleset"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        rulesetDesc.textContent = descriptions[radio.value];
+      });
+    });
+
+    socket.on('joined', ({ playerId, roomId, name }) => {
+      sessionStorage.setItem('dfg_name', name);
+      sessionStorage.setItem('dfg_room', roomId);
+      sessionStorage.setItem('dfg_id', playerId);
+      window.location.href = '/game.html';
+    });
+
+    socket.on('error', (msg) => {
+      joinBtn.disabled = false;
+      joinBtn.textContent = 'Cast in';
+      showError(msg);
+    });
+
+    // Pre-fill from session if returning
+    if (sessionStorage.getItem('dfg_name')) nameInput.value = sessionStorage.getItem('dfg_name');
+    if (sessionStorage.getItem('dfg_room')) roomInput.value = sessionStorage.getItem('dfg_room');
+
+    [nameInput, roomInput].forEach(el => {
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') joinBtn.click(); });
+    });
+  </script>
+</body>
+</html>
