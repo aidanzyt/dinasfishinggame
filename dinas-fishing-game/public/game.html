@@ -8,93 +8,95 @@
 </head>
 <body class="game-page">
 
-  <!-- Top bar -->
-  <header class="topbar">
-    <span class="topbar-logo">🎣 Dina's Fishing Game</span>
-    <span class="topbar-room">Room: <strong id="roomLabel">—</strong></span>
-    <span id="rulesetBadge" class="ruleset-badge" style="display:none"></span>
-  </header>
-
   <!-- Lobby waiting area -->
-  <div id="lobbyArea" class="panel center-panel" style="display:none">
-    <h2>Waiting for players</h2>
-    <p class="hint">Share the room name with friends. 2–6 players.</p>
-    <div id="playerList" class="player-list"></div>
+  <div id="lobbyArea" class="lobby-screen" style="display:none">
+    <div class="lobby-inner">
+      <div class="lobby-icon">🎣</div>
+      <h1>Dina's Fishing Game</h1>
+      <p class="lobby-room">Room: <strong id="roomLabel">—</strong></p>
+      <div id="playerList" class="player-list"></div>
 
-    <div class="field" style="margin-top:1.5rem; text-align:left;">
-      <label style="font-family:'Courier New',monospace;font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-light);display:block;margin-bottom:.4rem;">Ruleset</label>
-      <div class="ruleset-toggle">
-        <label class="ruleset-option">
-          <input type="radio" name="lobbyRuleset" value="classic" checked />
-          <span class="ruleset-pill">Classic</span>
-        </label>
-        <label class="ruleset-option">
-          <input type="radio" name="lobbyRuleset" value="dinas" />
-          <span class="ruleset-pill">Dina's Rules ✨</span>
-        </label>
+      <div class="ruleset-field">
+        <label>Ruleset</label>
+        <div class="ruleset-toggle">
+          <label class="ruleset-option">
+            <input type="radio" name="lobbyRuleset" value="classic" checked />
+            <span class="ruleset-pill">Classic</span>
+          </label>
+          <label class="ruleset-option">
+            <input type="radio" name="lobbyRuleset" value="dinas" />
+            <span class="ruleset-pill">Dina's Rules ✨</span>
+          </label>
+        </div>
+        <p id="lobbyRulesetDesc" class="ruleset-desc">Getting cards earns you another turn.</p>
       </div>
-      <p id="lobbyRulesetDesc" class="ruleset-desc">Getting cards from a player earns you another turn.</p>
-    </div>
 
-    <button id="startBtn" class="btn-primary" style="margin-top:1rem">Start Game</button>
-    <p id="startError" class="error-msg" style="display:none"></p>
+      <button id="startBtn" class="btn-start">Start Game</button>
+      <p id="startError" class="error-msg" style="display:none"></p>
+    </div>
   </div>
 
-  <!-- Game area -->
+  <!-- Game table -->
   <div id="gameArea" style="display:none">
-    <div class="game-layout">
 
-      <!-- Left: opponents + pond -->
-      <aside class="side-panel">
-        <div class="section-label">Players</div>
-        <div id="opponentList"></div>
-        <div class="pond-block">
-          <div class="pond-icon">🐟</div>
-          <div class="pond-count" id="pondCount">52</div>
-          <div class="pond-label">in the pond</div>
-        </div>
-      </aside>
+    <!-- Top bar -->
+    <header class="topbar">
+      <span class="topbar-logo">🎣 Dina's Fishing Game</span>
+      <div class="topbar-right">
+        <span id="rulesetBadge" class="ruleset-badge" style="display:none"></span>
+        <span class="pond-pill">🐟 <strong id="pondCount">0</strong> left</span>
+      </div>
+    </header>
 
-      <!-- Center: ask panel + log -->
-      <main class="main-panel">
-        <div id="askPanel" class="ask-panel" style="display:none">
-          <div class="ask-title">Your turn — who do you want to ask?</div>
-          <div class="ask-row">
-            <select id="targetSelect" class="select-field"></select>
-            <span class="ask-for-text">do you have any</span>
-            <select id="rankSelect" class="select-field"></select>
-            <span class="ask-for-text">s?</span>
-            <button id="askBtn" class="btn-primary btn-ask">Ask!</button>
+    <!-- Table -->
+    <div class="table">
+
+      <!-- Opponents arc -->
+      <div id="opponentArc" class="opponent-arc"></div>
+
+      <!-- Center action zone -->
+      <div class="center-zone">
+        <div id="askPanel" style="display:none" class="ask-panel">
+          <div class="ask-sentence">
+            <select id="targetSelect" class="sel"></select>
+            <span>, do you have any</span>
+            <select id="rankSelect" class="sel"></select>
+            <span>s?</span>
           </div>
+          <button id="askBtn" class="btn-ask">Ask 🎣</button>
         </div>
-        <div id="waitPanel" class="wait-panel" style="display:none">
-          <div id="waitMsg" class="wait-msg">Waiting for another player's turn…</div>
+        <div id="waitPanel" style="display:none" class="wait-panel">
+          <div id="waitMsg" class="wait-msg"></div>
         </div>
+      </div>
 
-        <div class="log-box">
-          <div class="section-label">Game log</div>
-          <div id="logList" class="log-list"></div>
+      <!-- Your area -->
+      <div class="your-area">
+        <div class="your-meta">
+          <span class="your-name" id="yourName"></span>
+          <div id="yourBooks" class="your-books"></div>
         </div>
-      </main>
+        <div id="yourHand" class="hand-fan"></div>
+      </div>
 
-      <!-- Right: your hand + books -->
-      <aside class="side-panel your-side">
-        <div class="section-label">Your hand</div>
-        <div id="yourHand" class="hand-grid"></div>
-        <div class="section-label" style="margin-top:1rem">Your books</div>
-        <div id="yourBooks" class="books-row"></div>
-      </aside>
+    </div>
+  </div>
 
+  <!-- Result flash -->
+  <div id="resultFlash" class="result-flash" style="display:none">
+    <div class="result-inner">
+      <div id="resultIcon" class="result-icon"></div>
+      <div id="resultMsg" class="result-msg"></div>
     </div>
   </div>
 
   <!-- Winner overlay -->
   <div id="winnerOverlay" class="overlay" style="display:none">
     <div class="overlay-card">
-      <div class="winner-fish">🏆</div>
-      <h2 id="winnerTitle">Winner!</h2>
+      <div class="overlay-icon">🏆</div>
+      <h2 id="winnerTitle"></h2>
       <p id="winnerDesc"></p>
-      <button id="playAgainBtn" class="btn-primary" style="margin-top:1rem">Play again</button>
+      <button id="playAgainBtn" class="btn-start" style="margin-top:1.5rem">Play Again</button>
     </div>
   </div>
 
